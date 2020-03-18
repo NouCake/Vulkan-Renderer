@@ -29,6 +29,10 @@ private:
 	vk::Queue mQueue;
 	vk::SurfaceKHR mSurface;
 	vk::SwapchainKHR mSwapchain;
+	std::vector<vk::Image> mSwapchainImages;
+	vk::Format mSwapchainFormat;
+	vk::Extent2D mSwapchainExtent;
+	std::vector<vk::ImageView> mSwapchainImageViews;
 	
 	struct SwapchainSupportDetails {
 		vk::SurfaceCapabilitiesKHR capabilities;
@@ -110,7 +114,17 @@ private:
 			details.capabilities.currentTransform, vk::CompositeAlphaFlagBitsKHR::eOpaque, presentMode, true, nullptr);
 		
 		mSwapchain = mDevice.createSwapchainKHR(swapChainCreateInfo);
-		
+		mSwapchainImages = mDevice.getSwapchainImagesKHR(mSwapchain);
+		mSwapchainFormat = surfaceFormat.format;
+		mSwapchainExtent = imageExtent;
+
+		mSwapchainImageViews.reserve(mSwapchainImages.size());
+		vk::ComponentMapping compMap(vk::ComponentSwizzle::eR, vk::ComponentSwizzle::eG, vk::ComponentSwizzle::eB, vk::ComponentSwizzle::eA);
+		vk::ImageSubresourceRange subRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+		for (size_t i = 0; i < mSwapchainImages.size(); i++) {
+			vk::ImageViewCreateInfo imageViewCreateInfo(vk::ImageViewCreateFlags(), mSwapchainImages[i], vk::ImageViewType::e2D, mSwapchainFormat, compMap, subRange);
+			mSwapchainImageViews.push_back(mDevice.createImageView(imageViewCreateInfo));
+		}
 	}
 	void createSurface() {
 		VkSurfaceKHR surf;
