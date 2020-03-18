@@ -6,8 +6,26 @@
 #include <vulkan/vulkan.hpp>
 #include <iostream>
 #include <optional>
+#include <fstream>
 
 class HelloTriangleApplication {
+private:
+	static std::vector<char> readFile(const std::string& filename) {
+		std::ifstream file(filename, std::ios::binary | std::ios::ate);
+
+		if (file) {
+			size_t fileSize = file.tellg();
+			file.seekg(0);
+
+			std::vector<char> buffer(fileSize);
+			file.read(buffer.data(), fileSize);
+			file.close();
+
+			return buffer;
+		}
+
+		throw std::runtime_error("Failed to open");
+	}
 public:
 	void run() {
 		initWindow();
@@ -70,6 +88,25 @@ private:
 		pickPhysicalDevice();
 		createDevice();
 		createSwapChain();
+		createGraphicsPipeline();
+	}
+	vk::ShaderModule createShaderModule(std::string filename) {
+		std::vector<char> shaderCode = readFile(filename);
+		vk::ShaderModuleCreateInfo moduleCreateInfo(vk::ShaderModuleCreateFlags(), shaderCode.size(), (uint32_t*)shaderCode.data());
+		return mDevice.createShaderModule(moduleCreateInfo);
+	}
+	void createGraphicsPipeline() {
+		vk::ShaderModule vert = createShaderModule("shaders/vert.spv");
+		vk::ShaderModule frag = createShaderModule("shaders/frag.spv");
+	
+		vk::PipelineShaderStageCreateInfo vertStageCreateInfo(vk::PipelineShaderStageCreateFlagBits(), vk::ShaderStageFlagBits::eVertex, vert, "main");
+		vk::PipelineShaderStageCreateInfo fragStageCreateInfo(vk::PipelineShaderStageCreateFlagBits(), vk::ShaderStageFlagBits::eFragment, frag, "main");
+
+		vk::PipelineShaderStageCreateInfo stageInfos[2] = {
+			vertStageCreateInfo, fragStageCreateInfo
+		};
+
+
 	}
 	vk::SurfaceFormatKHR chooseSwapchainFormat(const SwapchainSupportDetails& details) {
 		vk::SurfaceFormatKHR format;
