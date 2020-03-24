@@ -139,12 +139,27 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Imgui\imgui.cpp" />
+    <ClCompile Include="Imgui\imgui_demo.cpp" />
+    <ClCompile Include="Imgui\imgui_draw.cpp" />
+    <ClCompile Include="Imgui\imgui_impl_vulkan.cpp" />
+    <ClCompile Include="Imgui\imgui_impl_win32.cpp" />
+    <ClCompile Include="Imgui\imgui_widgets.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Imgui\imconfig.h" />
+    <ClInclude Include="Imgui\imgui.h" />
+    <ClInclude Include="Imgui\imgui_impl_vulkan.h" />
+    <ClInclude Include="Imgui\imgui_impl_win32.h" />
+    <ClInclude Include="Imgui\imgui_internal.h" />
+    <ClInclude Include="Imgui\imstb_rectpack.h" />
+    <ClInclude Include="Imgui\imstb_textedit.h" />
+    <ClInclude Include="Imgui\imstb_truetype.h" />
     <ClInclude Include="MySecondVulkanApp.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Imgui\imgui.ini" />
     <None Include="shaders\shader.frag" />
     <None Include="shaders\shader.vert" />
   </ItemGroup>

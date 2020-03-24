@@ -2,11 +2,17 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-
+#include <glm/glm.hpp>
 #include <vulkan/vulkan.hpp>
+
 #include <iostream>
 #include <optional>
 #include <fstream>
+
+
+#include "ImGUI/imgui.h"
+#include "ImGUI/imgui_impl_vulkan.h"
+#include "ImGUI/imgui_impl_win32.h"
 
 class HelloTriangleApplication {
 private:
@@ -39,6 +45,8 @@ private:
 	const uint32_t WINDOW_WIDTH = 640;
 	const uint32_t WINDOW_HEIGHT = 480;
 
+	const size_t MAX_FRAMES_IN_FLIGHT = 2;
+
 	GLFWwindow* mWindow;
 
 	vk::Instance mInstance;
@@ -57,10 +65,33 @@ private:
 	vk::Pipeline mPipeline;
 	vk::CommandPool mCommandPool;
 	std::vector<vk::CommandBuffer> mCommandBuffers;
-	
-	vk::Semaphore mImageAquiredSemaphore;
-	vk::Semaphore mRenderFinishedSemaphore;
 
+	vk::Buffer mVertexBuffer;
+	vk::Buffer mIndexBuffer;
+	vk::DeviceMemory mVertexBufferMemory;
+	vk::DeviceMemory mIndexBufferMemory;
+
+	std::vector<vk::Semaphore> mImageAquiredSemaphores;
+	std::vector<vk::Semaphore> mRenderFinishedSemaphores;
+	std::vector<vk::Fence> mFlightFence;
+
+	struct Vertex {
+		glm::vec2 pos;
+		glm::vec3 color;
+
+		static vk::VertexInputBindingDescription getBindingDesc() {
+			vk::VertexInputBindingDescription desc(0, sizeof(Vertex), vk::VertexInputRate::eVertex);
+			return desc;
+		}
+
+		static std::vector<vk::VertexInputAttributeDescription> getAttrDesc() {
+			std::vector<vk::VertexInputAttributeDescription> desc = {
+				vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, pos)),
+				vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color))
+			};
+			return desc;
+		}
+	};
 	struct SwapchainSupportDetails {
 		vk::SurfaceCapabilitiesKHR capabilities;
 		std::vector<vk::SurfaceFormatKHR> formats;
@@ -82,16 +113,27 @@ private:
 	}
 
 
-	void  (*build_framebuffer_callback(HelloTriangleApplication* a))(GLFWwindow*, int, int, int, int)
-	{
+	void  (*build_framebuffer_callback(HelloTriangleApplication* a))(GLFWwindow*, int, int, int, int) {
 		static HelloTriangleApplication* app = a;
 
 		void (*callback)(GLFWwindow*, int, int, int, int) = ([](GLFWwindow* window, int key, int scancode, int action, int mods) {
-			uint32_t i = app->drawFrame();
-			std::cout << "Hello Framus!" << i << std::endl;
+			//uint32_t i = app->drawFrame();
+			//std::cout << "Hello Framus!" << i << std::endl;
 		});
 
 		return callback;
+	}
+
+	uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) {
+		vk::PhysicalDeviceMemoryProperties memProps = mPhysDevice.getMemoryProperties();
+
+		for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+			if (typeFilter & (1 << i) && (memProps.memoryTypes[i].propertyFlags & properties) == properties) {
+				return i;
+			}
+		}
+
+		return 0;
 	}
 
 	void initWindow() {
@@ -118,16 +160,20 @@ private:
 		});
 	}
 	
-	uint32_t drawFrame() {
-		uint32_t imageIndex = mDevice.acquireNextImageKHR(mSwapchain, UINT64_MAX, mImageAquiredSemaphore, nullptr).value;
+	void drawFrame() {
+		static int curFrame = 0;
+		mDevice.waitForFences(mFlightFence[curFrame], VK_TRUE, UINT64_MAX);
+		mDevice.resetFences(mFlightFence[curFrame]);
+		uint32_t imageIndex = mDevice.acquireNextImageKHR(mSwapchain, UINT64_MAX, mImageAquiredSemaphores[curFrame], nullptr).value;
 		vk::PipelineStageFlags waitStage(vk::PipelineStageFlagBits::eColorAttachmentOutput);
 
-		vk::SubmitInfo submitInfo(1, &mImageAquiredSemaphore, &waitStage, 1, &(mCommandBuffers[imageIndex]), 1, &mRenderFinishedSemaphore);
-		mQueue.submit(1, &submitInfo, nullptr);
+		vk::SubmitInfo submitInfo(1, &mImageAquiredSemaphores[curFrame], &waitStage, 1, &(mCommandBuffers[imageIndex]), 1, &mRenderFinishedSemaphores[curFrame]);
+		mQueue.submit(1, &submitInfo, mFlightFence[curFrame]);
 		
-		vk::PresentInfoKHR presentInfo(1, &mRenderFinishedSemaphore, 1, &mSwapchain, &imageIndex);
+		vk::PresentInfoKHR presentInfo(1, &mRenderFinishedSemaphores[curFrame], 1, &mSwapchain, &imageIndex);
 		mQueue.presentKHR(presentInfo);
-		return imageIndex;
+
+		curFrame = (curFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	}
 
 	void initVulkan() {
@@ -137,36 +183,144 @@ private:
 		createDevice();
 		createSwapChain();
 		createRenderPass();
+		initImgui();
 		createGraphicsPipeline();
 		createFrameBuffers();
 		createCommandPool();
+		createIndexBuffer();
+		createVertexBuffer();
 		createCommandBuffers();
 		createSemaphores();
-		drawFrame();
+	}
+	void initImgui() {
+		/*
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiIO& io = ImGui::GetIO(); (void)io;
+		io.IniFilename = "ImGUI/imgui.ini";
+		ImGui::StyleColorsDark();
+
+		ImGui_ImplVulkan_InitInfo initInfo = { };
+		initInfo.Instance = mInstance;
+		initInfo.PhysicalDevice = mPhysDevice;
+		initInfo.Device = mDevice;
+		initInfo.QueueFamily = findQueueFamilies(mPhysDevice, vk::QueueFlagBits::eGraphics);
+		initInfo.Queue = mQueue;
+		initInfo.PipelineCache = NULL;
+		initInfo.DescriptorPool = NULL; //TODO
+		initInfo.MinImageCount = 2;
+		initInfo.ImageCount = 2;
+		initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+		initInfo.Allocator = NULL;
+
+		//ImGui_ImplVulkan_Init(&initInfo, mRenderPass);
+		*/
+	}
+	void createBuffer(uint32_t size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags memoryProperties,
+			vk::Buffer& buffer, vk::DeviceMemory& memory) {
+		uint32_t queueFamily = findQueueFamilies(mPhysDevice, vk::QueueFlagBits::eGraphics);
+		vk::BufferCreateInfo bufferCreateInfo({}, size, usage, vk::SharingMode::eExclusive);
+		buffer = mDevice.createBuffer(bufferCreateInfo);
+
+		vk::MemoryRequirements requirements = mDevice.getBufferMemoryRequirements(buffer);
+		vk::MemoryAllocateInfo allocateInfo(requirements.size, findMemoryType(requirements.memoryTypeBits, memoryProperties));
+		memory = mDevice.allocateMemory(allocateInfo);
+		mDevice.bindBufferMemory(buffer, memory, 0);
+	}
+	void copyBuffer(vk::Buffer srcBuffer, vk::Buffer dstBuffer, uint32_t size) {
+		vk::CommandBufferAllocateInfo allocateInfo(mCommandPool, vk::CommandBufferLevel::ePrimary, 1);
+		vk::CommandBuffer tmpBuffer = mDevice.allocateCommandBuffers(allocateInfo)[0];
+		
+		vk::BufferCopy region(0, 0, size);
+
+		tmpBuffer.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+		tmpBuffer.copyBuffer(srcBuffer, dstBuffer, region);
+		tmpBuffer.end();
+
+		vk::SubmitInfo submitInfo(0, nullptr, nullptr, 1, &tmpBuffer, 0, nullptr);
+		mQueue.submit(submitInfo, nullptr);
+		mQueue.waitIdle();
+	}
+	void createIndexBuffer() {
+		std::vector<uint16_t> indecies = {
+			0, 1, 2, 2, 3, 0
+		};
+
+		vk::Buffer stagingBuffer;
+		vk::DeviceMemory statgingBufferMemory;
+
+		uint32_t bufferByteSize = indecies.size() * sizeof(uint16_t);
+		vk::MemoryPropertyFlags props = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
+		createBuffer(bufferByteSize, vk::BufferUsageFlagBits::eTransferSrc, props, stagingBuffer, statgingBufferMemory);
+
+		void* data = mDevice.mapMemory(statgingBufferMemory, 0, bufferByteSize);
+		memcpy(data, indecies.data(), bufferByteSize);
+		mDevice.unmapMemory(statgingBufferMemory);
+
+		vk::BufferUsageFlags indeciesUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer;
+		vk::MemoryPropertyFlags vertexProps = vk::MemoryPropertyFlagBits::eDeviceLocal;
+		createBuffer(bufferByteSize, indeciesUsage, vertexProps, mIndexBuffer, mIndexBufferMemory);
+
+		copyBuffer(stagingBuffer, mIndexBuffer, bufferByteSize);
+
+		mDevice.destroyBuffer(stagingBuffer);
+		mDevice.freeMemory(statgingBufferMemory);
+	}
+	void createVertexBuffer() {
+		std::vector<Vertex> vertecies = {
+			{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+			{{0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}},
+			{{0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}},
+			{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+		};
+
+		vk::Buffer stagingBuffer;
+		vk::DeviceMemory statgingBufferMemory;
+
+		uint32_t bufferByteSize = vertecies.size() * sizeof(Vertex);
+		vk::MemoryPropertyFlags props = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
+		createBuffer(bufferByteSize, vk::BufferUsageFlagBits::eTransferSrc, props, stagingBuffer, statgingBufferMemory);
+
+		void* data = mDevice.mapMemory(statgingBufferMemory, 0, bufferByteSize);
+		memcpy(data, vertecies.data(), bufferByteSize);
+		mDevice.unmapMemory(statgingBufferMemory);
+
+		vk::BufferUsageFlags vertexUsage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer;
+		vk::MemoryPropertyFlags vertexProps = vk::MemoryPropertyFlagBits::eDeviceLocal;
+		createBuffer(bufferByteSize, vertexUsage, vertexProps, mVertexBuffer, mVertexBufferMemory);
+
+		copyBuffer(stagingBuffer, mVertexBuffer, bufferByteSize);
+
+		mDevice.destroyBuffer(stagingBuffer);
+		mDevice.freeMemory(statgingBufferMemory);
 	}
 	void createSemaphores() {
-		mImageAquiredSemaphore = mDevice.createSemaphore(vk::SemaphoreCreateInfo());
-		mRenderFinishedSemaphore = mDevice.createSemaphore(vk::SemaphoreCreateInfo());
+		mImageAquiredSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+		mRenderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+		mFlightFence.resize(MAX_FRAMES_IN_FLIGHT);
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+			mImageAquiredSemaphores[i] = mDevice.createSemaphore(vk::SemaphoreCreateInfo());
+			mRenderFinishedSemaphores[i] = mDevice.createSemaphore(vk::SemaphoreCreateInfo());
+			mFlightFence[i] = mDevice.createFence(vk::FenceCreateInfo(vk::FenceCreateFlagBits::eSignaled));
+		}
 	}
 	void createCommandBuffers() {
 		vk::CommandBufferAllocateInfo allocateInfo(mCommandPool, vk::CommandBufferLevel::ePrimary, mSwapchainImages.size());
 		mCommandBuffers = mDevice.allocateCommandBuffers(allocateInfo);
+		vk::ClearValue clearValues(std::array<float, 4>({ 0.0f, 0.25f, 0.8f, 1.0f }));
 		vk::Rect2D extent = vk::Rect2D({ (uint32_t)0, (uint32_t)0 }, { WINDOW_WIDTH, WINDOW_HEIGHT });
 		for (size_t i = 0; i < mCommandBuffers.size(); i++) {
-			vk::ClearValue clearValues;
-			if (i == 0) {
-				clearValues = vk::ClearValue(std::array<float, 4>({ 0.0f, 0.25f, 0.8f, 1.0f }));
-			}
-			else {
-				clearValues = vk::ClearValue(std::array<float, 4>({ 1.0f, 0.25f, 0.8f, 1.0f }));
-			}
+			
 
 			vk::RenderPassBeginInfo rpBeginInfo(mRenderPass, mSwapchainFramebuffer[i], extent, 1, &clearValues);
 		
 			mCommandBuffers[i].begin(vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eSimultaneousUse));
 			mCommandBuffers[i].beginRenderPass(rpBeginInfo, vk::SubpassContents::eInline);
 			mCommandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, mPipeline);
-			mCommandBuffers[i].draw(3, 1, 0, 0);
+			mCommandBuffers[i].bindIndexBuffer(mIndexBuffer, 0, vk::IndexType::eUint16);
+			mCommandBuffers[i].bindVertexBuffers(0, mVertexBuffer, { 0 });
+			mCommandBuffers[i].drawIndexed(6, 1, 0, 0, 0);
 			mCommandBuffers[i].endRenderPass();
 			mCommandBuffers[i].end();
 		}
@@ -186,9 +340,9 @@ private:
 	void createRenderPass() {
 		vk::AttachmentDescription colorAttachment({}, mSwapchainFormat, vk::SampleCountFlagBits::e1, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare, vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
 		vk::AttachmentReference colorRef(0, vk::ImageLayout::eColorAttachmentOptimal);
-		
+
 		vk::SubpassDescription subpass({}, vk::PipelineBindPoint::eGraphics, 0, nullptr, 1, &colorRef, nullptr, nullptr, 0, nullptr);
-		
+
 		vk::SubpassDependency dependency(VK_SUBPASS_EXTERNAL, 0, vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eColorAttachmentWrite);
 
 		vk::RenderPassCreateInfo renderpassCreateInfo({}, 1, &colorAttachment, 1, &subpass, 1, &dependency);
@@ -202,7 +356,7 @@ private:
 	void createGraphicsPipeline() {
 		vk::ShaderModule vert = createShaderModule("shaders/vert.spv");
 		vk::ShaderModule frag = createShaderModule("shaders/frag.spv");
-	
+
 		vk::PipelineShaderStageCreateInfo vertStageCreateInfo(vk::PipelineShaderStageCreateFlagBits(), vk::ShaderStageFlagBits::eVertex, vert, "main");
 		vk::PipelineShaderStageCreateInfo fragStageCreateInfo(vk::PipelineShaderStageCreateFlagBits(), vk::ShaderStageFlagBits::eFragment, frag, "main");
 
@@ -211,16 +365,19 @@ private:
 		};
 
 		vk::Viewport viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0f, 1.0f);
-		vk::Rect2D scissor({(uint32_t)0, (uint32_t)0}, { WINDOW_WIDTH, WINDOW_HEIGHT});
+		vk::Rect2D scissor({ (uint32_t)0, (uint32_t)0 }, { WINDOW_WIDTH, WINDOW_HEIGHT });
 		vk::PipelineColorBlendAttachmentState blendAttachmentState(VK_FALSE, vk::BlendFactor::eOne, vk::BlendFactor::eZero, vk::BlendOp::eAdd, vk::BlendFactor::eOne, vk::BlendFactor::eZero, vk::BlendOp::eAdd, vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
 		float blendConstants[] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-		vk::PipelineVertexInputStateCreateInfo vertexInputCreateInfo(vk::PipelineVertexInputStateCreateFlags(), 0, nullptr, 0, nullptr);
+		vk::VertexInputBindingDescription vertBindings = Vertex::getBindingDesc();
+		std::vector<vk::VertexInputAttributeDescription> vertAttributes = Vertex::getAttrDesc();
+
+		vk::PipelineVertexInputStateCreateInfo vertexInputCreateInfo(vk::PipelineVertexInputStateCreateFlags(), 1, &vertBindings, vertAttributes.size(), vertAttributes.data());
 		vk::PipelineInputAssemblyStateCreateInfo assemblyCreateInfo(vk::PipelineInputAssemblyStateCreateFlags(), vk::PrimitiveTopology::eTriangleList, VK_FALSE);
 		vk::PipelineViewportStateCreateInfo viewportStateCreateInfo(vk::PipelineViewportStateCreateFlags(), 1, &viewport, 1, &scissor);
-		vk::PipelineRasterizationStateCreateInfo rasterCreateInfo(vk::PipelineRasterizationStateCreateFlags(), VK_FALSE, VK_TRUE, vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise, VK_FALSE, 0, 0, 0, 1.0f);
+		vk::PipelineRasterizationStateCreateInfo rasterCreateInfo(vk::PipelineRasterizationStateCreateFlags(), VK_FALSE, VK_FALSE, vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise, VK_FALSE, 0, 0, 0, 1.0f);
 		vk::PipelineMultisampleStateCreateInfo multisampleCreateInfo(vk::PipelineMultisampleStateCreateFlags(), vk::SampleCountFlagBits::e1, VK_FALSE, 1.0f, nullptr, VK_FALSE, VK_FALSE);
-		vk::PipelineColorBlendStateCreateInfo blendStateCreateInfo(vk::PipelineColorBlendStateCreateFlagBits(), VK_FALSE, vk::LogicOp::eCopy, 1, &blendAttachmentState, std::array<float, 4>({0.0f, 0.0f, 0.0f, 0.0f}));
+		vk::PipelineColorBlendStateCreateInfo blendStateCreateInfo(vk::PipelineColorBlendStateCreateFlagBits(), VK_FALSE, vk::LogicOp::eCopy, 1, &blendAttachmentState, std::array<float, 4>({ 0.0f, 0.0f, 0.0f, 0.0f }));
 		vk::PipelineDynamicStateCreateInfo dynamicStateCreateInfo(vk::PipelineDynamicStateCreateFlags(), 0, nullptr);
 
 		vk::PipelineLayoutCreateInfo layoutCreateInfo({}, 0, nullptr, 0, nullptr);
@@ -373,7 +530,6 @@ private:
 		instanceCreateInfo.ppEnabledExtensionNames = glfwExtensions;
 		instanceCreateInfo.enabledLayerCount = instanceLayerNames.size();
 		instanceCreateInfo.ppEnabledLayerNames = instanceLayerNames.data();
-
 
 		mInstance = vk::createInstance(instanceCreateInfo);
 	}
