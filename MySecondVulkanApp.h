@@ -2,12 +2,17 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
+#define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <vulkan/vulkan.hpp>
 
 #include <iostream>
 #include <optional>
 #include <fstream>
+#include <chrono>
 
 
 #include "ImGUI/imgui.h"
@@ -66,10 +71,16 @@ private:
 	vk::CommandPool mCommandPool;
 	std::vector<vk::CommandBuffer> mCommandBuffers;
 
+	vk::DescriptorSetLayout mDescriptorSetLayout;
+	vk::DescriptorPool mDescriptorPool;
+	std::vector<vk::DescriptorSet> mDescriptorSets;
+
 	vk::Buffer mVertexBuffer;
 	vk::Buffer mIndexBuffer;
 	vk::DeviceMemory mVertexBufferMemory;
 	vk::DeviceMemory mIndexBufferMemory;
+	std::vector<vk::Buffer> mUniformBuffers;
+	std::vector<vk::DeviceMemory> mUniformBufferMemory;
 
 	std::vector<vk::Semaphore> mImageAquiredSemaphores;
 	std::vector<vk::Semaphore> mRenderFinishedSemaphores;
@@ -92,6 +103,13 @@ private:
 			return desc;
 		}
 	};
+
+	struct UniformBuffer {
+		glm::mat4 model;
+		glm::mat4 view;
+		glm::mat4 proj;
+	};
+
 	struct SwapchainSupportDetails {
 		vk::SurfaceCapabilitiesKHR capabilities;
 		std::vector<vk::SurfaceFormatKHR> formats;
@@ -167,6 +185,8 @@ private:
 		uint32_t imageIndex = mDevice.acquireNextImageKHR(mSwapchain, UINT64_MAX, mImageAquiredSemaphores[curFrame], nullptr).value;
 		vk::PipelineStageFlags waitStage(vk::PipelineStageFlagBits::eColorAttachmentOutput);
 
+		updateUniformBuffer(imageIndex);
+
 		vk::SubmitInfo submitInfo(1, &mImageAquiredSemaphores[curFrame], &waitStage, 1, &(mCommandBuffers[imageIndex]), 1, &mRenderFinishedSemaphores[curFrame]);
 		mQueue.submit(1, &submitInfo, mFlightFence[curFrame]);
 		
@@ -182,15 +202,74 @@ private:
 		pickPhysicalDevice();
 		createDevice();
 		createSwapChain();
+		createCommandPool();
+
+		//Material specific
 		createRenderPass();
-		initImgui();
+		createDescriptorSetLayout();
+		createUniformBuffer();
+		createDescriptorPool();
+		createDescriptorSets();
+		initImgui(); //not
 		createGraphicsPipeline();
 		createFrameBuffers();
-		createCommandPool();
+
+		//Mesh
 		createIndexBuffer();
 		createVertexBuffer();
+
+		//not
 		createCommandBuffers();
 		createSemaphores();
+	}
+	void createDescriptorSets() {
+		std::vector<vk::DescriptorSetLayout> layouts(mSwapchainImages.size(), mDescriptorSetLayout);
+
+		vk::DescriptorSetAllocateInfo allocateInfo(mDescriptorPool, mSwapchainImages.size(), layouts.data());
+		mDescriptorSets = mDevice.allocateDescriptorSets(allocateInfo);
+
+		for (size_t i = 0; i < mSwapchainImages.size(); i++) {
+			vk::DescriptorBufferInfo bufferInfo(mUniformBuffers[i], 0, sizeof(UniformBuffer));
+			vk::WriteDescriptorSet write(mDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bufferInfo, nullptr);
+			mDevice.updateDescriptorSets(write, nullptr);
+		}
+	}
+	void createDescriptorPool() {
+		vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, mSwapchainImages.size());
+
+		vk::DescriptorPoolCreateInfo poolCreateInfo({}, mSwapchainImages.size(), 1, &poolSize);
+		mDescriptorPool = mDevice.createDescriptorPool(poolCreateInfo);
+	}
+	void updateUniformBuffer(uint32_t bufferIndex) {
+		static auto startTime = std::chrono::high_resolution_clock::now();
+		auto currentTime = std::chrono::high_resolution_clock::now();
+		float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+		UniformBuffer ubo;
+		
+		ubo.model = glm::rotate(glm::mat4(1.0f), deltaTime * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.proj = glm::perspective(glm::radians(45.0f), mSwapchainExtent.width / (float)mSwapchainExtent.height, 0.01f, 100.0f);
+		ubo.proj[1][1] *= -1;
+
+		void* data = mDevice.mapMemory(mUniformBufferMemory[bufferIndex], 0, sizeof(UniformBuffer));
+		memcpy(data, &ubo, sizeof(UniformBuffer));
+		mDevice.unmapMemory(mUniformBufferMemory[bufferIndex]);
+	}
+	void createUniformBuffer() {
+		mUniformBuffers.resize(mSwapchainImages.size());
+		mUniformBufferMemory.resize(mSwapchainImages.size());
+		
+		uint32_t bufferSize = sizeof(UniformBuffer);
+		for (int i = 0; i < mSwapchainImages.size(); i++) {
+			createBuffer(bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, mUniformBuffers[i], mUniformBufferMemory[i]);
+		}
+	}
+	void createDescriptorSetLayout() {
+		vk::DescriptorSetLayoutBinding uniformBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex, nullptr);
+
+		vk::DescriptorSetLayoutCreateInfo layoutCreateInfo({}, 1, &uniformBinding);
+		mDescriptorSetLayout = mDevice.createDescriptorSetLayout(layoutCreateInfo);
 	}
 	void initImgui() {
 		/*
@@ -320,6 +399,7 @@ private:
 			mCommandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, mPipeline);
 			mCommandBuffers[i].bindIndexBuffer(mIndexBuffer, 0, vk::IndexType::eUint16);
 			mCommandBuffers[i].bindVertexBuffers(0, mVertexBuffer, { 0 });
+			mCommandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, mPipelineLayout, 0, mDescriptorSets[i], nullptr);
 			mCommandBuffers[i].drawIndexed(6, 1, 0, 0, 0);
 			mCommandBuffers[i].endRenderPass();
 			mCommandBuffers[i].end();
@@ -371,16 +451,17 @@ private:
 
 		vk::VertexInputBindingDescription vertBindings = Vertex::getBindingDesc();
 		std::vector<vk::VertexInputAttributeDescription> vertAttributes = Vertex::getAttrDesc();
-
+		
+		//United States of GraphicsPipeline
 		vk::PipelineVertexInputStateCreateInfo vertexInputCreateInfo(vk::PipelineVertexInputStateCreateFlags(), 1, &vertBindings, vertAttributes.size(), vertAttributes.data());
 		vk::PipelineInputAssemblyStateCreateInfo assemblyCreateInfo(vk::PipelineInputAssemblyStateCreateFlags(), vk::PrimitiveTopology::eTriangleList, VK_FALSE);
 		vk::PipelineViewportStateCreateInfo viewportStateCreateInfo(vk::PipelineViewportStateCreateFlags(), 1, &viewport, 1, &scissor);
-		vk::PipelineRasterizationStateCreateInfo rasterCreateInfo(vk::PipelineRasterizationStateCreateFlags(), VK_FALSE, VK_FALSE, vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise, VK_FALSE, 0, 0, 0, 1.0f);
+		vk::PipelineRasterizationStateCreateInfo rasterCreateInfo(vk::PipelineRasterizationStateCreateFlags(), VK_FALSE, VK_FALSE, vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise, VK_FALSE, 0, 0, 0, 1.0f);
 		vk::PipelineMultisampleStateCreateInfo multisampleCreateInfo(vk::PipelineMultisampleStateCreateFlags(), vk::SampleCountFlagBits::e1, VK_FALSE, 1.0f, nullptr, VK_FALSE, VK_FALSE);
 		vk::PipelineColorBlendStateCreateInfo blendStateCreateInfo(vk::PipelineColorBlendStateCreateFlagBits(), VK_FALSE, vk::LogicOp::eCopy, 1, &blendAttachmentState, std::array<float, 4>({ 0.0f, 0.0f, 0.0f, 0.0f }));
 		vk::PipelineDynamicStateCreateInfo dynamicStateCreateInfo(vk::PipelineDynamicStateCreateFlags(), 0, nullptr);
 
-		vk::PipelineLayoutCreateInfo layoutCreateInfo({}, 0, nullptr, 0, nullptr);
+		vk::PipelineLayoutCreateInfo layoutCreateInfo({}, 1, &mDescriptorSetLayout, 0, nullptr);
 		mPipelineLayout = mDevice.createPipelineLayout(layoutCreateInfo);
 
 		vk::GraphicsPipelineCreateInfo pipelineCreateInfo({}, 2, stageInfos, &vertexInputCreateInfo, &assemblyCreateInfo, nullptr, &viewportStateCreateInfo, &rasterCreateInfo, &multisampleCreateInfo, nullptr, &blendStateCreateInfo, &dynamicStateCreateInfo, mPipelineLayout, mRenderPass, 0, {}, -1);
