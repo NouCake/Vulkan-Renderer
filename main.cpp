@@ -1,14 +1,16 @@
 #include <stdexcept>
 #include <iostream>
 
-#include "MySecondVulkanApp.h"
+#include "NouEngine.h"
+//#include "MySecondVulkanApp.h"
 
 int main() {
 
-	HelloTriangleApplication app;
-	
 	try {
-		app.run();
+		//HelloTriangleApplication().run();
+		NouEngine& e = *NouEngine::createInstance();
+		e.run();
+		delete& e;
 	}
 	catch (const std::exception& e) {
 		std::cerr << e.what() << std::endl;

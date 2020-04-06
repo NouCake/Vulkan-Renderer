@@ -14,6 +14,8 @@
 #include <fstream>
 #include <chrono>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 #include "ImGUI/imgui.h"
 #include "ImGUI/imgui_impl_vulkan.h"
@@ -81,6 +83,8 @@ private:
 	vk::DeviceMemory mIndexBufferMemory;
 	std::vector<vk::Buffer> mUniformBuffers;
 	std::vector<vk::DeviceMemory> mUniformBufferMemory;
+
+	vk::Image mTestTexture;
 
 	std::vector<vk::Semaphore> mImageAquiredSemaphores;
 	std::vector<vk::Semaphore> mRenderFinishedSemaphores;
@@ -190,7 +194,7 @@ private:
 		vk::SubmitInfo submitInfo(1, &mImageAquiredSemaphores[curFrame], &waitStage, 1, &(mCommandBuffers[imageIndex]), 1, &mRenderFinishedSemaphores[curFrame]);
 		mQueue.submit(1, &submitInfo, mFlightFence[curFrame]);
 		
-		vk::PresentInfoKHR presentInfo(1, &mRenderFinishedSemaphores[curFrame], 1, &mSwapchain, &imageIndex);
+		vk::PresentInfoKHR presentInfo{ 1, &mRenderFinishedSemaphores[curFrame], 1, &mSwapchain, &imageIndex };
 		mQueue.presentKHR(presentInfo);
 
 		curFrame = (curFrame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -205,6 +209,7 @@ private:
 		createCommandPool();
 
 		//Material specific
+		createImage();
 		createRenderPass();
 		createDescriptorSetLayout();
 		createUniformBuffer();
@@ -222,6 +227,29 @@ private:
 		createCommandBuffers();
 		createSemaphores();
 	}
+	void createImage() {
+		std::string filename = "textures/test.png";
+
+		int imgWidth;
+		int imgHeight;
+		int imgChannels;
+		stbi_uc* imgData = stbi_load(filename.c_str(), &imgWidth, &imgHeight, &imgChannels, STBI_rgb_alpha);
+
+		uint32_t imageByteSize = imgWidth * imgHeight * 4;
+
+		vk::Buffer tmpBuffer;
+		vk::DeviceMemory tmpMemory;
+		createBuffer(imageByteSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, tmpBuffer, tmpMemory);
+	
+		void* data = mDevice.mapMemory(tmpMemory, 0, imageByteSize);
+		memcpy(data, imgData, imageByteSize);
+		mDevice.unmapMemory(tmpMemory);
+
+		uint32_t familyIndex = findQueueFamilies(mPhysDevice, vk::QueueFlagBits::eGraphics);
+		vk::ImageCreateInfo imageCreateInfo({}, vk::ImageType::e2D, vk::Format::eR8G8B8A8Srgb, {(uint32_t)imgWidth, (uint32_t)imgHeight, 1}, 1, 1, vk::SampleCountFlagBits::e1, vk::ImageTiling::eLinear, vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, vk::SharingMode::eExclusive, 1, &familyIndex, vk::ImageLayout::eUndefined);
+		vk::Image img = mDevice.createImage(imageCreateInfo);
+	
+	}
 	void createDescriptorSets() {
 		std::vector<vk::DescriptorSetLayout> layouts(mSwapchainImages.size(), mDescriptorSetLayout);
 
@@ -235,9 +263,9 @@ private:
 		}
 	}
 	void createDescriptorPool() {
-		vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, mSwapchainImages.size());
+		vk::DescriptorPoolSize poolSize{ vk::DescriptorType::eUniformBuffer, mSwapchainImages.size() };
 
-		vk::DescriptorPoolCreateInfo poolCreateInfo({}, mSwapchainImages.size(), 1, &poolSize);
+		vk::DescriptorPoolCreateInfo poolCreateInfo{ {}, mSwapchainImages.size(), 1, &poolSize };
 		mDescriptorPool = mDevice.createDescriptorPool(poolCreateInfo);
 	}
 	void updateUniformBuffer(uint32_t bufferIndex) {
@@ -248,7 +276,7 @@ private:
 		UniformBuffer ubo;
 		
 		ubo.model = glm::rotate(glm::mat4(1.0f), deltaTime * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)); 
 		ubo.proj = glm::perspective(glm::radians(45.0f), mSwapchainExtent.width / (float)mSwapchainExtent.height, 0.01f, 100.0f);
 		ubo.proj[1][1] *= -1;
 
@@ -297,7 +325,6 @@ private:
 	}
 	void createBuffer(uint32_t size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags memoryProperties,
 			vk::Buffer& buffer, vk::DeviceMemory& memory) {
-		uint32_t queueFamily = findQueueFamilies(mPhysDevice, vk::QueueFlagBits::eGraphics);
 		vk::BufferCreateInfo bufferCreateInfo({}, size, usage, vk::SharingMode::eExclusive);
 		buffer = mDevice.createBuffer(bufferCreateInfo);
 
@@ -390,7 +417,6 @@ private:
 		vk::ClearValue clearValues(std::array<float, 4>({ 0.0f, 0.25f, 0.8f, 1.0f }));
 		vk::Rect2D extent = vk::Rect2D({ (uint32_t)0, (uint32_t)0 }, { WINDOW_WIDTH, WINDOW_HEIGHT });
 		for (size_t i = 0; i < mCommandBuffers.size(); i++) {
-			
 
 			vk::RenderPassBeginInfo rpBeginInfo(mRenderPass, mSwapchainFramebuffer[i], extent, 1, &clearValues);
 		
@@ -418,7 +444,8 @@ private:
 		}
 	}
 	void createRenderPass() {
-		vk::AttachmentDescription colorAttachment({}, mSwapchainFormat, vk::SampleCountFlagBits::e1, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare, vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
+		vk::AttachmentDescription colorAttachment({}, mSwapchainFormat, vk::SampleCountFlagBits::e1, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
+			vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare, vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
 		vk::AttachmentReference colorRef(0, vk::ImageLayout::eColorAttachmentOptimal);
 
 		vk::SubpassDescription subpass({}, vk::PipelineBindPoint::eGraphics, 0, nullptr, 1, &colorRef, nullptr, nullptr, 0, nullptr);
@@ -447,19 +474,17 @@ private:
 		vk::Viewport viewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, 0.0f, 1.0f);
 		vk::Rect2D scissor({ (uint32_t)0, (uint32_t)0 }, { WINDOW_WIDTH, WINDOW_HEIGHT });
 		vk::PipelineColorBlendAttachmentState blendAttachmentState(VK_FALSE, vk::BlendFactor::eOne, vk::BlendFactor::eZero, vk::BlendOp::eAdd, vk::BlendFactor::eOne, vk::BlendFactor::eZero, vk::BlendOp::eAdd, vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
-		float blendConstants[] = { 0.0f, 0.0f, 0.0f, 0.0f };
-
 		vk::VertexInputBindingDescription vertBindings = Vertex::getBindingDesc();
 		std::vector<vk::VertexInputAttributeDescription> vertAttributes = Vertex::getAttrDesc();
 		
 		//United States of GraphicsPipeline
-		vk::PipelineVertexInputStateCreateInfo vertexInputCreateInfo(vk::PipelineVertexInputStateCreateFlags(), 1, &vertBindings, vertAttributes.size(), vertAttributes.data());
-		vk::PipelineInputAssemblyStateCreateInfo assemblyCreateInfo(vk::PipelineInputAssemblyStateCreateFlags(), vk::PrimitiveTopology::eTriangleList, VK_FALSE);
-		vk::PipelineViewportStateCreateInfo viewportStateCreateInfo(vk::PipelineViewportStateCreateFlags(), 1, &viewport, 1, &scissor);
-		vk::PipelineRasterizationStateCreateInfo rasterCreateInfo(vk::PipelineRasterizationStateCreateFlags(), VK_FALSE, VK_FALSE, vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise, VK_FALSE, 0, 0, 0, 1.0f);
-		vk::PipelineMultisampleStateCreateInfo multisampleCreateInfo(vk::PipelineMultisampleStateCreateFlags(), vk::SampleCountFlagBits::e1, VK_FALSE, 1.0f, nullptr, VK_FALSE, VK_FALSE);
-		vk::PipelineColorBlendStateCreateInfo blendStateCreateInfo(vk::PipelineColorBlendStateCreateFlagBits(), VK_FALSE, vk::LogicOp::eCopy, 1, &blendAttachmentState, std::array<float, 4>({ 0.0f, 0.0f, 0.0f, 0.0f }));
-		vk::PipelineDynamicStateCreateInfo dynamicStateCreateInfo(vk::PipelineDynamicStateCreateFlags(), 0, nullptr);
+		vk::PipelineVertexInputStateCreateInfo vertexInputCreateInfo{ {}, 1, &vertBindings, vertAttributes.size(), vertAttributes.data() };
+		vk::PipelineInputAssemblyStateCreateInfo assemblyCreateInfo{ {}, vk::PrimitiveTopology::eTriangleList, VK_FALSE };
+		vk::PipelineViewportStateCreateInfo viewportStateCreateInfo{ {}, 1, &viewport, 1, &scissor };
+		vk::PipelineRasterizationStateCreateInfo rasterCreateInfo{ {}, VK_FALSE, VK_FALSE, vk::PolygonMode::eFill, vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise, VK_FALSE, 0, 0, 0, 1.0f };
+		vk::PipelineMultisampleStateCreateInfo multisampleCreateInfo{ {}, vk::SampleCountFlagBits::e1, VK_FALSE, 1.0f, nullptr, VK_FALSE, VK_FALSE };
+		vk::PipelineColorBlendStateCreateInfo blendStateCreateInfo{ {}, VK_FALSE, vk::LogicOp::eCopy, 1, &blendAttachmentState, std::array<float, 4>({ 0.0f, 0.0f, 0.0f, 0.0f }) };
+		vk::PipelineDynamicStateCreateInfo dynamicStateCreateInfo{ {}, 0, nullptr };
 
 		vk::PipelineLayoutCreateInfo layoutCreateInfo({}, 1, &mDescriptorSetLayout, 0, nullptr);
 		mPipelineLayout = mDevice.createPipelineLayout(layoutCreateInfo);
@@ -522,6 +547,7 @@ private:
 			mSwapchainImageViews.push_back(mDevice.createImageView(imageViewCreateInfo));
 		}
 	}
+
 	void createSurface() {
 		VkSurfaceKHR surf;
 		if (glfwCreateWindowSurface(mInstance, mWindow, nullptr, &surf) != VK_SUCCESS) {
@@ -529,6 +555,7 @@ private:
 		}
 		mSurface = vk::SurfaceKHR(surf);
 	}
+
 	void createDevice() {
 
 		//DeviceQueueCreateInfo
@@ -548,9 +575,9 @@ private:
 		mDevice = mPhysDevice.createDevice(deviceCreateInfo);
 		mQueue = mDevice.getQueue(queueFamilyIndex, 0);
 	}
+
 	size_t findQueueFamilies(vk::PhysicalDevice physicalDevice, vk::QueueFlags requiredFlags) {
 		std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
-
 
 		for (size_t i = 0; i < queueFamilyProperties.size(); i++) {
 			if (physicalDevice.getSurfaceSupportKHR(i, mSurface) && 
