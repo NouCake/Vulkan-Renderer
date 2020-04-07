@@ -75,7 +75,9 @@ public:
 		memcpy(data, &ubo, sizeof(Uniforms));
 		device.unmapMemory(mUniformStagingBufferMemory);
 
-		buffer.copyBuffer(mUniformStagingBuffer, mUniformBuffer, { srcOffset, 0, sizeof(Uniforms) });
+
+		vk::BufferCopy region{ srcOffset, 0, sizeof(Uniforms) };
+		buffer.copyBuffer(mUniformStagingBuffer, mUniformBuffer, region);
 	}
 
 	void Bind(const vk::CommandBuffer& cmdBuffer) {
