@@ -108,4 +108,21 @@ namespace VulkanUtils {
 		queue.waitIdle();
 	}
 
+	/*
+	void copyBuffer(const vk::Device& device, const vk::CommandBuffer& buffer, vk::Buffer srcBuffer, vk::Buffer dstBuffer, uint32_t size, uint32_t srcOffset, uint32_t dstOffset) {
+		vk::BufferCopy region{ srcOffset, dstOffset, size };
+		buffer.copyBuffer(srcBuffer, dstBuffer, region);
+	}
+	*/
+	
+	void createImage(vk::Device device, vk::PhysicalDevice physDevice, vk::Format format, uint32_t width, uint32_t height, vk::ImageUsageFlags usage, vk::Image& outImage, vk::DeviceMemory& outMemory) {
+		vk::ImageCreateInfo info{ {}, vk::ImageType::e2D, format, {width, height, 1}, 1, 1, vk::SampleCountFlagBits::e1, vk::ImageTiling::eOptimal, usage, vk::SharingMode::eExclusive, 0, nullptr, vk::ImageLayout::eUndefined };
+		outImage = device.createImage(info);
+		vk::MemoryRequirements req = device.getImageMemoryRequirements(outImage);
+		uint32_t imageSize = req.size;
+		vk::MemoryAllocateInfo allocInfo{ imageSize, findMemoryType(physDevice, req.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal) };
+		outMemory = device.allocateMemory(allocInfo);
+		device.bindImageMemory(outImage, outMemory, 0);
+	}
+
 }

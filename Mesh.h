@@ -34,14 +34,18 @@ public:
 private:
 	void loadMesh() {
 		mIndexData = {
-			0, 1, 2, 2, 3, 0
+			4, 0, 1,
+			4, 1, 2,
+			4, 2, 3,
+			4, 3, 0,
 		};
 
 		mVertexData = {
 			{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
 			{{0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}},
 			{{0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}},
-			{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+			{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}},
+			{{0.0f, 0.0f}, {0.5f, 0.5f, 0.5f}}
 		};
 	}
 	void createBuffers(vk::Device device, vk::PhysicalDevice physDevice) {
@@ -58,7 +62,7 @@ private:
 		vk::Buffer tmpBuffer;
 		vk::DeviceMemory tmpMemory;
 
-		VulkanUtils::createBuffer(device, physDevice, vertexDataSize, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferSrc, HOST_LOCAL, tmpBuffer, tmpMemory);
+		VulkanUtils::createBuffer(device, physDevice, vertexDataSize, vk::BufferUsageFlagBits::eTransferSrc, HOST_LOCAL, tmpBuffer, tmpMemory);
 		void* data = device.mapMemory(tmpMemory, 0, vertexDataSize);
 		memcpy(data, mVertexData.data(), vertexDataSize);
 		device.unmapMemory(tmpMemory);

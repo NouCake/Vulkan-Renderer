@@ -17,9 +17,11 @@ void Renderer::drawScene(const GraphicsVulkan& gfx) {
 
 	mBeginInfo.framebuffer = mFramebuffers[currentSwapchainImageIndex];
 
+	mat.UpdateUniforms(gfx.mDevice, cmdBuffer, gfx.currentFrame);
+
 	cmdBuffer.beginRenderPass(mBeginInfo, vk::SubpassContents::eInline);
 	mat.Bind(cmdBuffer);
 	mesh.Bind(cmdBuffer);
-	cmdBuffer.drawIndexed(6, 1, 0, 0, 0);
+	cmdBuffer.drawIndexed(mesh.GetIndexCount(), 1, 0, 0, 0);
 	cmdBuffer.endRenderPass();
 }
