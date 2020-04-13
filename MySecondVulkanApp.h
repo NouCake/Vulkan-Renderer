@@ -245,8 +245,7 @@ private:
 		memcpy(data, imgData, imageByteSize);
 		mDevice.unmapMemory(tmpMemory);
 
-		uint32_t familyIndex = findQueueFamilies(mPhysDevice, vk::QueueFlagBits::eGraphics);
-		vk::ImageCreateInfo imageCreateInfo({}, vk::ImageType::e2D, vk::Format::eR8G8B8A8Srgb, {(uint32_t)imgWidth, (uint32_t)imgHeight, 1}, 1, 1, vk::SampleCountFlagBits::e1, vk::ImageTiling::eLinear, vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, vk::SharingMode::eExclusive, 1, &familyIndex, vk::ImageLayout::eUndefined);
+		vk::ImageCreateInfo imageCreateInfo({}, vk::ImageType::e2D, vk::Format::eR8G8B8A8Srgb, {(uint32_t)imgWidth, (uint32_t)imgHeight, 1}, 1, 1, vk::SampleCountFlagBits::e1, vk::ImageTiling::eLinear, vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, vk::SharingMode::eExclusive, 0, nullptr, vk::ImageLayout::eUndefined);
 		vk::Image img = mDevice.createImage(imageCreateInfo);
 	
 	}

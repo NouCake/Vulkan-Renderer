@@ -8,12 +8,21 @@ class Renderer {
 
 public:
 	Renderer(const GraphicsVulkan& gfx) {
-		createPipeline(gfx.mDevice, gfx.mSwapchainFormat);
+		mGfx = &gfx;
+		createRenderPass(gfx.mDevice, gfx.mSwapchainFormat);
 		createBuffers(gfx.mDevice, gfx.SURFACE_WIDTH, gfx.SURFACE_HEIGHT, gfx.SWAPCHAIN_SIZE, gfx.mSwapchainImageViews);
 		createDescriptorPool(gfx.mDevice);
 
 		createBeginInfo(gfx.SURFACE_WIDTH, gfx.SURFACE_HEIGHT);
 	}
+	~Renderer() {
+		mGfx->mDevice.waitIdle();
+		mGfx->mDevice.destroyDescriptorPool(mDescriptorPool);
+		for (auto fb : mFramebuffers) mGfx->mDevice.destroyFramebuffer(fb);
+		mGfx->mDevice.destroyRenderPass(mRenderpass);
+	}
+	Renderer(const Renderer&) = delete;
+	Renderer& operator= (const Renderer&) = delete;
 
 	/* Buffer has to be started recording */
 	void drawScene(const GraphicsVulkan& gfx);
@@ -25,7 +34,7 @@ public:
 private:
 
 	//Init
-	void createPipeline(vk::Device device, vk::Format swapchainFormat) {
+	void createRenderPass(vk::Device device, vk::Format swapchainFormat) {
 		vk::AttachmentDescription colorAttachment{ {}, swapchainFormat, vk::SampleCountFlagBits::e1,
 			vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::AttachmentLoadOp::eDontCare,
 			vk::AttachmentStoreOp::eDontCare, vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR };
@@ -63,7 +72,8 @@ private:
 	std::vector<vk::Framebuffer> mFramebuffers;
 
 	vk::DescriptorPool mDescriptorPool;
-
+	
+	const GraphicsVulkan* mGfx;
 	//needz
 	vk::ClearValue mClearValues;
 	vk::RenderPassBeginInfo mBeginInfo;

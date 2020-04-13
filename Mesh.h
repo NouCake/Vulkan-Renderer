@@ -17,10 +17,20 @@ private:
 	 
 public:
 	Mesh(const GraphicsVulkan& gfx) {
+		mGfx = &gfx;
 		loadMesh();
 		createBuffers(gfx.mDevice, gfx.mPhysicalDevice);
 		fillBuffers(gfx.mDevice, gfx.mPhysicalDevice, gfx.mCommandPool, gfx.mGfxQueue);
 	}
+	~Mesh() {
+		mGfx->mDevice.waitIdle();
+		mGfx->mDevice.destroyBuffer(mVertexBuffer);
+		mGfx->mDevice.destroyBuffer(mIndexBuffer);
+		mGfx->mDevice.freeMemory(mVertexBufferMemory);
+		mGfx->mDevice.freeMemory(mIndexBufferMemory);
+	}
+	Mesh(const Mesh&) = delete;
+	Mesh& operator= (const Mesh&) = delete;
 
 	void Bind(const vk::CommandBuffer& cmdBuffer) {
 		cmdBuffer.bindVertexBuffers(0, mVertexBuffer, (uint64_t)0 );
@@ -87,5 +97,7 @@ private:
 
 	std::vector<Vertex> mVertexData;
 	std::vector<uint16_t> mIndexData;
+
+	const GraphicsVulkan* mGfx;
 
 };

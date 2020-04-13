@@ -15,8 +15,11 @@ GraphicsVulkan::GraphicsVulkan(GLFWwindow* window) {
 }
 
 GraphicsVulkan::~GraphicsVulkan() {
+	mDevice.waitIdle();
 	mDevice.freeCommandBuffers(mCommandPool, mCommandBuffers);
 	mDevice.destroyCommandPool(mCommandPool);
+	for (auto imageView : mSwapchainImageViews) mDevice.destroyImageView(imageView);
+	mDevice.destroySwapchainKHR(mSwapchain);
 	mDevice.destroy();
 
 	mInstance.destroySurfaceKHR(mSurface);

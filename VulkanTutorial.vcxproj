@@ -167,6 +167,7 @@
     <ClInclude Include="MySecondVulkanApp.h" />
     <ClInclude Include="NouEngine.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="VulkanImage.h" />
     <ClInclude Include="VulkanUtils.h" />
   </ItemGroup>
   <ItemGroup>

@@ -11,6 +11,7 @@ class GraphicsVulkan : public Graphics {
 	friend class Renderer;
 	friend class Material;
 	friend class Mesh;
+	friend class VulkanImage;
 
 public:
 	GraphicsVulkan(GLFWwindow*);
@@ -31,24 +32,24 @@ public:
 
 private:
 	//Vulkan
-	vk::Instance mInstance;
-	vk::SurfaceKHR mSurface;
+	vk::Instance mInstance; //needs cleanup
+	vk::SurfaceKHR mSurface; //needs cleanup
 	VulkanUtils::QueueFamilyIndices mQueueFamilyIndices;
 	vk::PhysicalDevice mPhysicalDevice;
-	vk::Device mDevice;
+	vk::Device mDevice; //needs cleanup
 	vk::Queue mGfxQueue;
 	vk::Queue mPresentQueue;
 
 	//Swapchain
-	vk::SwapchainKHR mSwapchain;
+	vk::SwapchainKHR mSwapchain; //needs cleanup
 	vk::Format mSwapchainFormat;
 	//vk::Extent2D mSwapchainExtent;
 	std::vector<vk::Image> mSwapchainImages;
-	std::vector<vk::ImageView> mSwapchainImageViews;
+	std::vector<vk::ImageView> mSwapchainImageViews; //needs cleanup
 
 	//Commands
-	vk::CommandPool mCommandPool;
-	std::vector<vk::CommandBuffer> mCommandBuffers;
+	vk::CommandPool mCommandPool; //needs cleanup
+	std::vector<vk::CommandBuffer> mCommandBuffers; //needs cleanup
 
 	//SyncObjects
 	std::vector<vk::UniqueSemaphore> mImageAquiredSemaphores;

@@ -40,16 +40,27 @@ public:
 	Material(const GraphicsVulkan& gfx, const Renderer& renderer) :
 		SURFACE_WIDTH(gfx.SURFACE_WIDTH),
 		SURFACE_HEIGHT(gfx.SURFACE_HEIGHT){
+		mGfx = &gfx;
 		createStages(gfx.mDevice);
 		createDescriptorSetLayout(gfx.mDevice);
 		createPipeline(gfx.mDevice, renderer.GetRenderPass(), gfx.SURFACE_WIDTH, gfx.SURFACE_HEIGHT);
 		createUniformBuffer(gfx.mDevice, gfx.mPhysicalDevice, gfx.MAX_FRAMES_IN_FLIGHT);
 		createDescriptorSet(gfx.mDevice, renderer.mDescriptorPool);
-	};
+	}
+
+	~Material() {
+		mGfx->mDevice.waitIdle();
+		mGfx->mDevice.destroyBuffer(mUniformStagingBuffer);
+		mGfx->mDevice.freeMemory(mUniformStagingBufferMemory);
+
+		mGfx->mDevice.destroyDescriptorSetLayout(mDescriptorSetLayout);
+		mGfx->mDevice.destroyPipelineLayout(mPipelineLayout);
+		mGfx->mDevice.destroyPipeline(mGfxPipeline);
+	}
+	Material(const Material&) = delete;
+	Material& operator= (const Material&) = delete;
+
 	void cleanup(const GraphicsVulkan& gfx) {
-		//Clean Modules smhow
-		gfx.mDevice.destroyPipeline(mGfxPipeline);
-		gfx.mDevice.destroyDescriptorSetLayout(mDescriptorSetLayout);
 	}
 
 	void UpdateUniforms(vk::Device device, vk::CommandBuffer buffer, uint32_t frameIndex) {
@@ -65,7 +76,7 @@ public:
 		ubo.proj = glm::identity<glm::mat4>();
 
 		ubo.model = glm::rotate(glm::mat4(1.0f), deltaTime * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		ubo.view = glm::lookAt(glm::vec3(0.0f, 2.0f, 2.0f), glm::vec3(0.0f, -2.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.view = glm::lookAt(glm::vec3(0.0f, 3.0f, 1.0f), glm::vec3(0.0f, -2.0f, 0), glm::vec3(0.0f, 0.0f, 1.0f));
 		ubo.proj = glm::perspective(glm::radians(45.0f), SURFACE_WIDTH / (float)SURFACE_HEIGHT, 0.01f, 100.0f);
 		ubo.proj[1][1] *= -1;
 
@@ -87,6 +98,7 @@ public:
 
 private:
 	void createStages(vk::Device device) {
+		//There are not cleaned up :^)
 		vk::ShaderModule vert = createShaderModule(device, "shaders/vert.spv");
 		vk::ShaderModule frag = createShaderModule(device, "shaders/frag.spv");
 
@@ -152,6 +164,8 @@ private:
 
 	vk::Buffer mUniformStagingBuffer;
 	vk::DeviceMemory mUniformStagingBufferMemory;
+
+	const GraphicsVulkan* mGfx;
 
 	const uint32_t SURFACE_WIDTH;
 	const uint32_t SURFACE_HEIGHT;
