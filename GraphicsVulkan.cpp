@@ -83,15 +83,16 @@ std::vector<vk::DeviceQueueCreateInfo> GraphicsVulkan::createQueueCreateInfos() 
 	mQueueFamilyIndices = VulkanUtils::findQueueFamilies(mPhysicalDevice, mSurface);;
 	std::set<uint32_t> uniqueFamilies = { mQueueFamilyIndices.graphicsFamily.value(), mQueueFamilyIndices.presentFamily.value() };
 	for (uint32_t i : uniqueFamilies) {
-		float priorities = 1;
-		createInfos.push_back(vk::DeviceQueueCreateInfo{ {}, i, 1, &priorities});
+		float* priorities = new float;
+		*priorities = 1;
+		createInfos.push_back(vk::DeviceQueueCreateInfo{ {}, i, 1, priorities});
 	}
 
 	return createInfos;
 }
 
 void GraphicsVulkan::createDevice() {
-	std::vector<vk::DeviceQueueCreateInfo> queueInfos = createQueueCreateInfos();;
+	std::vector<vk::DeviceQueueCreateInfo> queueInfos = createQueueCreateInfos();
 	vk::DeviceCreateInfo deviceInfo{ {}, (uint32_t)queueInfos.size(), queueInfos.data(), 
 		(uint32_t) mDeviceLayers.size(), mDeviceLayers.data(),
 		(uint32_t) mDeviceExtensions.size(), mDeviceExtensions.data(),
