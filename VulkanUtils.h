@@ -26,4 +26,7 @@ namespace VulkanUtils {
 	void copyBuffer(const vk::Device& device, const vk::CommandPool& cmdPool, const vk::Queue& queue, vk::Buffer srcBuffer, vk::Buffer dstBuffer, uint32_t size);
 	//void copyBuffer(const vk::Device& device, const vk::CommandBuffer& buffer, vk::Buffer srcBuffer, vk::Buffer dstBuffer, uint32_t size, uint32_t offset);
 	void createImage(vk::Device device, vk::PhysicalDevice physDevice, vk::Format format, uint32_t width, uint32_t height, vk::ImageUsageFlags usage, vk::Image& outImage, vk::DeviceMemory& outMemory);
+	vk::CommandBuffer startSingleUserCmdBuffer(vk::Device device, vk::CommandPool cmdPool);
+	void endSingleUseCmdBuffer(vk::CommandBuffer tmpBuffer, vk::Queue queue);
+	void transitionImageLayout(vk::Device device, vk::CommandPool cmdPool, vk::Queue queue, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
 }

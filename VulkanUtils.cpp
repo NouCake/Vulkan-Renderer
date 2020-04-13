@@ -125,4 +125,30 @@ namespace VulkanUtils {
 		device.bindImageMemory(outImage, outMemory, 0);
 	}
 
+	vk::CommandBuffer startSingleUserCmdBuffer(vk::Device device, vk::CommandPool cmdPool) {
+		vk::CommandBufferAllocateInfo allocateInfo{ cmdPool, vk::CommandBufferLevel::ePrimary, 1 };
+		vk::CommandBuffer tmpBuffer = device.allocateCommandBuffers(allocateInfo)[0];
+
+		tmpBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+		return tmpBuffer;
+	}
+
+	void endSingleUseCmdBuffer(vk::CommandBuffer tmpBuffer, vk::Queue queue) {
+		tmpBuffer.end();
+
+		vk::SubmitInfo submitInfo(0, nullptr, nullptr, 1, &tmpBuffer, 0, nullptr);
+		queue.submit(submitInfo, nullptr);
+		queue.waitIdle();
+	}
+
+	void transitionImageLayout(vk::Device device, vk::CommandPool cmdPool, vk::Queue queue, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) {
+		vk::CommandBuffer tmpBuffer = startSingleUserCmdBuffer(device, cmdPool);
+
+		vk::ImageSubresourceRange range{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+		vk::ImageMemoryBarrier barrier{ {}, {}, oldLayout, newLayout, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, image, range };
+		tmpBuffer.pipelineBarrier({}, {}, {}, {}, {}, barrier);
+
+		endSingleUseCmdBuffer(tmpBuffer, queue);
+	}
+
 }
