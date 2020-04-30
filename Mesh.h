@@ -11,8 +11,9 @@ class Mesh {
 private:
 	const vk::MemoryPropertyFlags HOST_LOCAL = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
 	struct Vertex {
-		glm::vec2 pos;
+		glm::vec3 pos;
 		glm::vec3 color;
+		glm::vec2 uv;
 	};
 	 
 public:
@@ -48,14 +49,25 @@ private:
 			4, 1, 2,
 			4, 2, 3,
 			4, 3, 0,
+
+			5+4, 5+0, 5+1,
+			5+4, 5+1, 5+2,
+			5+4, 5+2, 5+3,
+			5+4, 5+3, 5+0,
 		};
 
 		mVertexData = {
-			{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-			{{0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}},
-			{{0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}},
-			{{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}},
-			{{0.0f, 0.0f}, {0.5f, 0.5f, 0.5f}}
+			{{-0.5f, 0.25f, -0.5f}, {1.0f, 0.0f, 0.0f},	{1.0f, 1.0f}},
+			{{ 0.5f, 0.25f, -0.5f}, {1.0f, 0.0f, 1.0f},	{0.0f, 1.0f}},
+			{{ 0.5f, 0.25f,	0.5f }, {1.0f, 1.0f, 0.0f},	{0.0f, 0.0f}},
+			{{-0.5f, 0.25f,  0.5f }, {1.0f, 1.0f, 1.0f},	{1.0f, 0.0f}},
+			{{ 0.0f, 0.25f,  0.0f }, {0.5f, 0.5f, 0.5f},	{0.5f, 0.5f}},
+
+			{{-0.5f, 0.0f, -0.5f}, {1.0f, 0.0f, 0.0f},	{1.0f, 1.0f}},
+			{{ 0.5f, 0.0f, -0.5f}, {1.0f, 0.0f, 1.0f},	{0.0f, 1.0f}},
+			{{ 0.5f, 0.0f,	0.5f }, {1.0f, 1.0f, 0.0f},	{0.0f, 0.0f}},
+			{{-0.5f, 0.0f,  0.5f }, {1.0f, 1.0f, 1.0f},	{1.0f, 0.0f}},
+			{{ 0.0f, 0.0f,  0.0f }, {0.5f, 0.5f, 0.5f},	{0.5f, 0.5f}},
 		};
 	}
 	void createBuffers(vk::Device device, vk::PhysicalDevice physDevice) {

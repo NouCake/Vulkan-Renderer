@@ -141,14 +141,67 @@ namespace VulkanUtils {
 		queue.waitIdle();
 	}
 
-	void transitionImageLayout(vk::Device device, vk::CommandPool cmdPool, vk::Queue queue, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) {
-		vk::CommandBuffer tmpBuffer = startSingleUserCmdBuffer(device, cmdPool);
+	void transitionImageLayout(vk::CommandBuffer cmdBuffer, vk::Device device, vk::CommandPool cmdPool, vk::Queue queue, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) {
+		vk::AccessFlags srcAccess;
+		vk::AccessFlags dstAccess;
+		vk::PipelineStageFlags srcStage;
+		vk::PipelineStageFlags dstStage;
+
+		if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eTransferDstOptimal) {
+			srcAccess = {};
+			dstAccess = vk::AccessFlagBits::eTransferWrite;
+			srcStage = vk::PipelineStageFlagBits::eTopOfPipe;
+			dstStage = vk::PipelineStageFlagBits::eTransfer;
+		} else if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+			srcAccess = vk::AccessFlagBits::eTransferWrite;
+			dstAccess = vk::AccessFlagBits::eShaderRead;
+			srcStage = vk::PipelineStageFlagBits::eTransfer;
+			dstStage = vk::PipelineStageFlagBits::eFragmentShader;
+		}
 
 		vk::ImageSubresourceRange range{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
-		vk::ImageMemoryBarrier barrier{ {}, {}, oldLayout, newLayout, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, image, range };
-		tmpBuffer.pipelineBarrier({}, {}, {}, {}, {}, barrier);
+		vk::ImageMemoryBarrier barrier{ srcAccess, dstAccess, oldLayout, newLayout, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, image, range };
+		cmdBuffer.pipelineBarrier(srcStage, dstStage, {}, {}, {}, barrier);
+	}
 
-		endSingleUseCmdBuffer(tmpBuffer, queue);
+	void copyBufferToImage(vk::CommandBuffer cmdBuffer, vk::Device device, vk::CommandPool cmdPool, vk::Queue queue, vk::Buffer src, vk::Image dst, uint32_t width, uint32_t height) {
+
+		vk::BufferImageCopy copy;
+		copy.bufferOffset = 0;
+		copy.bufferRowLength = 0;
+		copy.bufferImageHeight = 0;
+		copy.imageSubresource = vk::ImageSubresourceLayers{ vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
+		copy.imageOffset = vk::Offset3D{ 0, 0, 0 };
+		copy.imageExtent = vk::Extent3D{ width, height, 1 };
+		cmdBuffer.copyBufferToImage(src, dst, vk::ImageLayout::eTransferDstOptimal, copy);
+
+	}
+
+	vk::Format findSupportedFormat(vk::PhysicalDevice physDevice, const std::vector<vk::Format> condidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features) {
+		
+		for (const auto& format : condidates) {
+			vk::FormatProperties props = physDevice.getFormatProperties(format);
+
+			if (tiling == vk::ImageTiling::eLinear && (props.linearTilingFeatures & features) == features) {
+				return format;
+			}
+			else if (tiling == vk::ImageTiling::eOptimal && (props.optimalTilingFeatures & features) == features) {
+				return format;
+			}
+
+			throw std::runtime_error("failed to find supported format");
+		}
+
+	}
+
+	bool hasStencilComponent(vk::Format format) {
+		return format == vk::Format::eD32SfloatS8Uint || format == vk::Format::eD24UnormS8Uint;
+	}
+
+	vk::ImageView createImageView(vk::Device device, vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlag) {
+		vk::ImageViewCreateInfo createInfo{ {}, image, vk::ImageViewType::e2D, format, {},
+			vk::ImageSubresourceRange{ aspectFlag, 0, 1, 0, 1} };
+		return device.createImageView(createInfo);
 	}
 
 }

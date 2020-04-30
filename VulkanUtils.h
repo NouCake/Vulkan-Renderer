@@ -28,5 +28,10 @@ namespace VulkanUtils {
 	void createImage(vk::Device device, vk::PhysicalDevice physDevice, vk::Format format, uint32_t width, uint32_t height, vk::ImageUsageFlags usage, vk::Image& outImage, vk::DeviceMemory& outMemory);
 	vk::CommandBuffer startSingleUserCmdBuffer(vk::Device device, vk::CommandPool cmdPool);
 	void endSingleUseCmdBuffer(vk::CommandBuffer tmpBuffer, vk::Queue queue);
-	void transitionImageLayout(vk::Device device, vk::CommandPool cmdPool, vk::Queue queue, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
+	void transitionImageLayout(vk::CommandBuffer cmdBuffer, vk::Device device, vk::CommandPool cmdPool, vk::Queue queue, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
+	void copyBufferToImage(vk::CommandBuffer cmdBuffer, vk::Device device, vk::CommandPool cmdPool, vk::Queue queue, vk::Buffer src, vk::Image dst, uint32_t width, uint32_t height);
+	vk::Format findSupportedFormat(vk::PhysicalDevice physDevice, const std::vector<vk::Format> condidates, vk::ImageTiling tiling, vk::FormatFeatureFlags features);
+	bool hasStencilComponent(vk::Format format);
+	vk::ImageView createImageView(vk::Device device, vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlag);
+
 }

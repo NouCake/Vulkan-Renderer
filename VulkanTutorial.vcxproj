@@ -147,8 +147,10 @@
     <ClCompile Include="Imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="Imgui\imgui_widgets.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Material.cpp" />
     <ClCompile Include="NouEngine.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="VulkanImage.cpp" />
     <ClCompile Include="VulkanUtils.cpp" />
   </ItemGroup>
   <ItemGroup>

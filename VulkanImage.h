@@ -2,55 +2,30 @@
 
 #include "GraphicsVulkan.h"
 
-#define STB_IMAGE_IMPLEMENTATION
 #include "STBI/stb_image.h"
 
 class VulkanImage {
 
 public:
-	VulkanImage(const GraphicsVulkan& gfx, std::string filename) {
-		loadImageData(filename);
-		createImage(gfx.mDevice);
-		fillImageWithData(gfx.mDevice, gfx.mPhysicalDevice);
-	};
+	VulkanImage(const GraphicsVulkan& gfx, std::string filename);
 	VulkanImage(const VulkanImage&) = delete;
+	VulkanImage& operator=(const VulkanImage&) = delete;
 	~VulkanImage();
+
+	vk::ImageView GetImageView() {
+		return mImageView;
+	}
+
 private:
-	void createImage(vk::Device device, vk::PhysicalDevice physDevice, vk::Format format) {
+	void createImage(vk::Device device, vk::PhysicalDevice physDevice, vk::Format format);
+	void loadImageData(std::string filename);
+	void fillImageWithData(vk::Device device, vk::PhysicalDevice physDevice, vk::CommandPool cmdPool, vk::Queue queue);
+	void createImageView(vk::Device device, vk::Format format) {
+		vk::ImageViewCreateInfo createInfo{ {}, mImage, vk::ImageViewType::e2D, format, {},
+			vk::ImageSubresourceRange{ vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1} };
+		mImageView = device.createImageView(createInfo);
 
-		vk::ImageCreateInfo imageCreateInfo{ {}, vk::ImageType::e2D, vk::Format::eR8G8B8A8Srgb, 
-			{mImgWidth, mImgHeight, 1 }, 1, 1, vk::SampleCountFlagBits::e1, vk::ImageTiling::eLinear, 
-			vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, vk::SharingMode::eExclusive, 
-			0, nullptr, vk::ImageLayout::eUndefined };
-		mImage  = device.createImage(imageCreateInfo);
-
-		VulkanUtils::createImage(device, physDevice, format, mImgWidth, mImgHeight, 
-			vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled, mImage, mImageMemory);
 	}
-
-	void loadImageData(std::string filename) {
-		int imgWidth;
-		int imgHeight;
-		int imgChannels;
-
-		mImgData = stbi_load(filename.c_str(), &imgWidth, &imgHeight, &imgChannels, STBI_rgb_alpha);
-		mImgByteSize = imgWidth * imgHeight * 4;
-
-		mImgWidth = imgWidth;
-		mImgHeight = imgHeight;
-	}
-
-	void fillImageWithData(vk::Device device, vk::PhysicalDevice physDevice) {
-		vk::Buffer tmpBuffer;
-		vk::DeviceMemory tmpMemory;
-		VulkanUtils::createBuffer(device, physDevice, mImgByteSize, vk::BufferUsageFlagBits::eTransferSrc, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent, tmpBuffer, tmpMemory);
-
-		void* data = device.mapMemory(tmpMemory, 0, mImgByteSize);
-		memcpy(data, mImgData, mImgByteSize);
-		device.unmapMemory(tmpMemory);
-		free(mImgData);
-	}
-
 private:
 	vk::ImageView mImageView;
 	vk::Image mImage;
