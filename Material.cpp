@@ -3,6 +3,7 @@
 #include "Material.h"
 
 #include <chrono>
+#include <math.h>
 
 Material::Material(const GraphicsVulkan& gfx, const Renderer& renderer) :
 	SURFACE_WIDTH(gfx.SURFACE_WIDTH),
@@ -42,8 +43,18 @@ void Material::UpdateUniforms(vk::Device device, vk::CommandBuffer buffer, uint3
 	ubo.view = glm::identity<glm::mat4>();
 	ubo.proj = glm::identity<glm::mat4>();
 
+	static glm::vec3 camPos(0.0f, 1.0f, 3.0f);
+	static glm::vec4 viewDir(0.0f, -1.0f, -2.0f, 0.0f);
+
+	static float* rotations = new float[2]{ 0.0f, 0.0f};
+	ImGui::SliderFloat3("Camera Position", &camPos.x, -10, 10);
+	ImGui::SliderFloat2("Camera Position", rotations, -3.14f, 3.14f);
+
+	glm::vec4 d = glm::rotate(glm::mat4(1.0f), rotations[0], glm::vec3(0.0f, 1.0f, 0.0f)) * viewDir;
+	d = glm::rotate(glm::mat4(1.0f), rotations[0], glm::vec3(1.0f, 0.0f, 1.0f)) * d;
+
 	//ubo.model = glm::rotate(glm::mat4(1.0f), deltaTime * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	ubo.view = glm::lookAt(glm::vec3(0.0f, 1.0f, 3.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.view = glm::lookAt(camPos, glm::vec3(camPos.x + d.x, camPos.y + d.y, camPos.z + d.z), glm::vec3(0.0f, 1.0f, 0.0f));
 	ubo.proj = glm::perspective(glm::radians(45.0f), SURFACE_WIDTH / (float)SURFACE_HEIGHT, 0.01f, 100.0f);
 	ubo.proj[1][1] *= -1;
 

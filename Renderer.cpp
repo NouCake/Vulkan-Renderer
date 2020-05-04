@@ -24,4 +24,10 @@ void Renderer::drawScene(const GraphicsVulkan& gfx) {
 	mesh.Bind(cmdBuffer);
 	cmdBuffer.drawIndexed(mesh.GetIndexCount(), 1, 0, 0, 0);
 	cmdBuffer.endRenderPass();
+
+	ImGui::Render();
+
+	cmdBuffer.beginRenderPass(vk::RenderPassBeginInfo{ mImguiRenderpass, mImguiFramebuffers[currentSwapchainImageIndex], mBeginInfo.renderArea, 1, mBeginInfo.pClearValues }, vk::SubpassContents::eInline);
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdBuffer);
+	cmdBuffer.endRenderPass();
 }

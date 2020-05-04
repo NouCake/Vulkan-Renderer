@@ -13,6 +13,16 @@ NouEngine::NouEngine(EngineSettings& settings) :
 
 	initGLFW();
 	initGFX();
+
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+	ImGui_ImplGlfw_InitForVulkan(mWindow, true);
 }
 NouEngine::NouEngine(const NouEngine&) {
 
@@ -29,10 +39,16 @@ void NouEngine::run() {
 	mRunning = true;
 	while (mRunning) {
 		glfwPollEvents();
-		mGfx->onFrameStart();
 
 		GraphicsVulkan& gfx = (GraphicsVulkan&)*mGfx;
 		static Renderer renderer(gfx);
+
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		mGfx->onFrameStart();
+
 		renderer.drawScene(gfx);
 
 		mGfx->onFrameEnd();

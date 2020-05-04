@@ -60,6 +60,9 @@
     <ClCompile Include="Material.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Imgui\imgui_impl_glfw.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="MySecondVulkanApp.h">
@@ -112,6 +115,9 @@
     </ClInclude>
     <ClInclude Include="VulkanImage.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Imgui\imgui_impl_glfw.h">
+      <Filter>Imgui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

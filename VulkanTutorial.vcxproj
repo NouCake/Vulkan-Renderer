@@ -143,6 +143,7 @@
     <ClCompile Include="Imgui\imgui.cpp" />
     <ClCompile Include="Imgui\imgui_demo.cpp" />
     <ClCompile Include="Imgui\imgui_draw.cpp" />
+    <ClCompile Include="Imgui\imgui_impl_glfw.cpp" />
     <ClCompile Include="Imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="Imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="Imgui\imgui_widgets.cpp" />
@@ -158,6 +159,7 @@
     <ClInclude Include="GraphicsVulkan.h" />
     <ClInclude Include="Imgui\imconfig.h" />
     <ClInclude Include="Imgui\imgui.h" />
+    <ClInclude Include="Imgui\imgui_impl_glfw.h" />
     <ClInclude Include="Imgui\imgui_impl_vulkan.h" />
     <ClInclude Include="Imgui\imgui_impl_win32.h" />
     <ClInclude Include="Imgui\imgui_internal.h" />
