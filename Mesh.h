@@ -7,6 +7,11 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 class Mesh {
 private:
 	const vk::MemoryPropertyFlags HOST_LOCAL = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
@@ -17,9 +22,9 @@ private:
 	};
 	 
 public:
-	Mesh(const GraphicsVulkan& gfx) {
+	Mesh(const GraphicsVulkan& gfx, const aiMesh* mesh) {
 		mGfx = &gfx;
-		loadMesh();
+		loadMesh(mesh);
 		createBuffers(gfx.mDevice, gfx.mPhysicalDevice);
 		fillBuffers(gfx.mDevice, gfx.mPhysicalDevice, gfx.mCommandPool, gfx.mGfxQueue);
 	}
@@ -39,36 +44,28 @@ public:
 	}
 
 	uint32_t GetIndexCount() {
-		return mIndexData.size();
+		return mIndexCount;
 	}
 
 private:
-	void loadMesh() {
-		mIndexData = {
-			4, 0, 1,
-			4, 1, 2,
-			4, 2, 3,
-			4, 3, 0,
+	void loadMesh(const aiMesh* curMesh) {
+		mVertexData.resize(curMesh->mNumVertices);
+		float scale = 0.01f;
+		for (uint32_t i = 0; i < curMesh->mNumVertices; i++) {
+			mVertexData[i].pos = { curMesh->mVertices[i].x * scale, curMesh->mVertices[i].y * scale, curMesh->mVertices[i].z * scale };
+			mVertexData[i].uv = { curMesh->mTextureCoords[0][i].x, curMesh->mTextureCoords[0][i].y };
+			mVertexData[i].color = { 1.0f, 1.0f, 1.0f };
+		}
 
-			5+4, 5+0, 5+1,
-			5+4, 5+1, 5+2,
-			5+4, 5+2, 5+3,
-			5+4, 5+3, 5+0,
-		};
+		mIndexData.resize(curMesh->mNumFaces * 3);
+		for (uint32_t i = 0; i < curMesh->mNumFaces; i++) {
+			mIndexData[(i * 3) + 0] = curMesh->mFaces[i].mIndices[0];
+			mIndexData[(i * 3) + 1] = curMesh->mFaces[i].mIndices[1];
+			mIndexData[(i * 3) + 2] = curMesh->mFaces[i].mIndices[2];
+		}
 
-		mVertexData = {
-			{{-0.5f, 0.25f, -0.5f}, {1.0f, 0.0f, 0.0f},	{1.0f, 1.0f}},
-			{{ 0.5f, 0.25f, -0.5f}, {1.0f, 0.0f, 1.0f},	{0.0f, 1.0f}},
-			{{ 0.5f, 0.25f,	0.5f }, {1.0f, 1.0f, 0.0f},	{0.0f, 0.0f}},
-			{{-0.5f, 0.25f,  0.5f }, {1.0f, 1.0f, 1.0f},	{1.0f, 0.0f}},
-			{{ 0.0f, 0.25f,  0.0f }, {0.5f, 0.5f, 0.5f},	{0.5f, 0.5f}},
 
-			{{-0.5f, 0.0f, -0.5f}, {1.0f, 0.0f, 0.0f},	{1.0f, 1.0f}},
-			{{ 0.5f, 0.0f, -0.5f}, {1.0f, 0.0f, 1.0f},	{0.0f, 1.0f}},
-			{{ 0.5f, 0.0f,	0.5f }, {1.0f, 1.0f, 0.0f},	{0.0f, 0.0f}},
-			{{-0.5f, 0.0f,  0.5f }, {1.0f, 1.0f, 1.0f},	{1.0f, 0.0f}},
-			{{ 0.0f, 0.0f,  0.0f }, {0.5f, 0.5f, 0.5f},	{0.5f, 0.5f}},
-		};
+		mIndexCount = mIndexData.size();
 	}
 	void createBuffers(vk::Device device, vk::PhysicalDevice physDevice) {
 		uint32_t vertexDataSize = sizeof(Vertex) * mVertexData.size();
@@ -88,6 +85,7 @@ private:
 		void* data = device.mapMemory(tmpMemory, 0, vertexDataSize);
 		memcpy(data, mVertexData.data(), vertexDataSize);
 		device.unmapMemory(tmpMemory);
+		mVertexData.clear();
 
 		VulkanUtils::copyBuffer(device, pool, queue, tmpBuffer, mVertexBuffer, vertexDataSize);
 
@@ -96,6 +94,7 @@ private:
 		data = device.mapMemory(tmpMemory, 0, indexDataSize);
 		memcpy(data, mIndexData.data(), indexDataSize);
 		device.unmapMemory(tmpMemory);
+		mIndexData.clear();
 
 		VulkanUtils::copyBuffer(device, pool, queue, tmpBuffer, mIndexBuffer, indexDataSize);
 	}
@@ -106,6 +105,8 @@ private:
 
 	vk::DeviceMemory mVertexBufferMemory;
 	vk::DeviceMemory mIndexBufferMemory;
+
+	size_t mIndexCount;
 
 	std::vector<Vertex> mVertexData;
 	std::vector<uint16_t> mIndexData;

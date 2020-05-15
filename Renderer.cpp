@@ -8,7 +8,16 @@ void Renderer::drawScene(const GraphicsVulkan& gfx) {
 	//DebugScene START
 
 	static Material mat(gfx, *this);
-	static Mesh mesh(gfx);
+	static std::vector<Mesh*> meshes;
+	if (meshes.size() == 0) {
+		Assimp::Importer imp;
+		const aiScene* scene = imp.ReadFile("Resources/sponza.obj", aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_FlipUVs);
+		meshes.resize(scene->mNumMeshes);
+		for (int i = 0; i < scene->mNumMeshes; i++) {
+			meshes[i] = new Mesh(gfx, scene->mMeshes[i]);
+		}
+	}
+
 
 	//DebugScene END
 
@@ -21,8 +30,10 @@ void Renderer::drawScene(const GraphicsVulkan& gfx) {
 
 	cmdBuffer.beginRenderPass(mBeginInfo, vk::SubpassContents::eInline);
 	mat.Bind(cmdBuffer);
-	mesh.Bind(cmdBuffer);
-	cmdBuffer.drawIndexed(mesh.GetIndexCount(), 1, 0, 0, 0);
+	for (Mesh* m : meshes) {
+		m->Bind(cmdBuffer);
+		cmdBuffer.drawIndexed(m->GetIndexCount(), 1, 0, 0, 0);
+	}
 	cmdBuffer.endRenderPass();
 
 	ImGui::Render();

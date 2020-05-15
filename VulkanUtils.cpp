@@ -93,11 +93,11 @@ namespace VulkanUtils {
 	}
 
 
-	void copyBuffer(const vk::Device& device, const vk::CommandPool& cmdPool, const vk::Queue& queue, vk::Buffer srcBuffer, vk::Buffer dstBuffer, uint32_t size) {
+	void copyBuffer(const vk::Device& device, const vk::CommandPool& cmdPool, const vk::Queue& queue, vk::Buffer srcBuffer, vk::DeviceSize srcOffset, vk::Buffer dstBuffer, vk::DeviceSize dstOffset, uint32_t size) {
 		vk::CommandBufferAllocateInfo allocateInfo{ cmdPool, vk::CommandBufferLevel::ePrimary, 1 };
 		vk::CommandBuffer tmpBuffer = device.allocateCommandBuffers(allocateInfo)[0];
 
-		vk::BufferCopy region{ 0, 0, size };
+		vk::BufferCopy region{ srcOffset, dstOffset, size };
 
 		tmpBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 		tmpBuffer.copyBuffer(srcBuffer, dstBuffer, region);
@@ -106,6 +106,11 @@ namespace VulkanUtils {
 		vk::SubmitInfo submitInfo(0, nullptr, nullptr, 1, &tmpBuffer, 0, nullptr);
 		queue.submit(submitInfo, nullptr);
 		queue.waitIdle();
+	}
+
+
+	void copyBuffer(const vk::Device& device, const vk::CommandPool& cmdPool, const vk::Queue& queue, vk::Buffer srcBuffer, vk::Buffer dstBuffer, uint32_t size) {
+		copyBuffer(device, cmdPool, queue, srcBuffer, 0, dstBuffer, 0, size);
 	}
 
 	/*
